@@ -18,51 +18,68 @@ namespace Zapretus {
         }
         void UpdateGameFilter() {
             loadingGameFilter = true; gameSwitch.Checked = gameFilter.Enabled; loadingGameFilter = false;
-            gameDescription.Text = gameFilter.Description + " • адреса из ipset-all.txt";
+            gameDescription.Text = gameFilter.Enabled
+                ? "Включён · " + gameFilter.Description + " · адреса из ipset-all.txt"
+                : "Выключен · фильтрация по списку ipset-all.txt";
         }
         void SaveGameFilter() {
             try { gameFilter.Save(GamePath); Log("Game Filter: " + gameFilter.Description); }
             catch (Exception e) { Log("Не удалось сохранить Game Filter: " + e.Message); }
             UpdateGameFilter();
         }
-        Card GameCard() {
-            var card = new Card { Dock = DockStyle.Fill, Margin = new Padding(0, 14, 0, 0) };
-            gameSwitch.Text = "Game Filter"; gameSwitch.Font = new Font("Segoe UI", 11, FontStyle.Bold);
-            gameSwitch.ForeColor = Theme.Text; gameSwitch.BackColor = Theme.Surface;
-            gameSwitch.SetBounds(24, 15, 240, 32); gameSwitch.Cursor = Cursors.Hand;
+        Control GameSettingsRow() {
+            gameSwitch.Text = "Game Filter";
             gameSwitch.CheckedChanged += (s, e) => {
                 if (loadingGameFilter) return;
-                gameFilter.Enabled = gameSwitch.Checked; SaveGameFilter();
+                gameFilter.Enabled = gameSwitch.Checked;
+                SaveGameFilter();
             };
-            gameDescription.SetBounds(26, 50, 620, 24); gameDescription.Font = new Font("Segoe UI", 9);
-            gameDescription.ForeColor = Theme.Muted; gameDescription.BackColor = Theme.Surface;
-            gameSettings.Text = "Настроить порты  ↗"; gameSettings.Width = 180; gameSettings.Dock = DockStyle.Right;
-            gameSettings.TextAlign = ContentAlignment.TopRight; gameSettings.BackColor = Theme.Surface;
-            gameSettings.LinkColor = Theme.Muted; gameSettings.ActiveLinkColor = Theme.Accent;
-            gameSettings.LinkBehavior = LinkBehavior.HoverUnderline;
+            gameSettings.Text = "Настроить порты";
             gameSettings.LinkClicked += (s, e) => EditGameFilter();
-            card.Controls.Add(gameSwitch); card.Controls.Add(gameDescription); card.Controls.Add(gameSettings); return card;
+            return SettingsRow(gameSwitch, gameDescription, gameSettings);
         }
         void EditGameFilter() {
             if (busy || engine.Running) return;
-            using (var dialog = new Form { Text = "Game Filter", ClientSize = new Size(570, 285), StartPosition = FormStartPosition.CenterParent,
-                FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false,
-                BackColor = Theme.Background, ForeColor = Theme.Text, Font = Font }) {
-                var mode = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(24, 58), Size = new Size(180, 30) };
-                mode.Items.AddRange(new object[] { "UDP", "TCP", "TCP + UDP" }); mode.SelectedItem = gameFilter.Mode;
-                var ports = new TextBox { Text = gameFilter.Ports, Location = new Point(228, 58), Size = new Size(315, 30) };
-                dialog.Controls.Add(LabelAt("Протокол", 24, 24, 180, 25, 10, false, Theme.Muted, Theme.Background));
-                dialog.Controls.Add(LabelAt("Порты и диапазоны", 228, 24, 315, 25, 10, false, Theme.Muted, Theme.Background));
-                dialog.Controls.Add(LabelAt("Например: 1024-65535 или 27015,27020-27030.\nОбрабатываются адреса из engine/lists/ipset-all.txt.\nИзменения применятся при следующем включении движка.", 24, 110, 520, 80, 10, false, Theme.Muted, Theme.Background));
-                var save = new ModernButton { Text = "Сохранить", Primary = true, Location = new Point(24, 215), Size = new Size(180, 44) };
+            using (var dialog = SettingsDialog("Настройка Game Filter", new Size(556, 286))) {
+                var content = DialogContent(dialog, 54, 36, 58, 0, 44);
+                var fields = Grid(2, 2);
+                fields.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 152));
+                fields.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                fields.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+                fields.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                var mode = new DarkComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill,
+                    Margin = new Padding(0, 0, 12, 0), AccessibleName = "Протокол",
+                    BackColor = Theme.Field, ForeColor = Theme.Text, DrawMode = DrawMode.OwnerDrawFixed };
+                mode.DrawItem += DrawProfile;
+                mode.Items.AddRange(new object[] { "UDP", "TCP", "TCP + UDP" });
+                mode.SelectedItem = gameFilter.Mode;
+                var ports = new DarkTextBox { Text = gameFilter.Ports, Dock = DockStyle.Fill, Margin = Padding.Empty };
+                fields.Controls.Add(TextLabel("Протокол"), 0, 0);
+                fields.Controls.Add(TextLabel("Порты и диапазоны"), 1, 0);
+                fields.Controls.Add(mode, 0, 1);
+                fields.Controls.Add(InputFrame(ports, "Порты и диапазоны"), 1, 1);
+                var error = DialogNote("", Theme.Error);
+                var save = new ModernButton { Text = "Сохранить", Primary = true };
                 save.Click += (s, e) => {
                     try {
                         string normalized = GameFilter.NormalizePorts(ports.Text);
-                        gameFilter.Ports = normalized; gameFilter.Mode = (string)mode.SelectedItem;
-                        SaveGameFilter(); dialog.Close();
-                    } catch (ArgumentException error) { MessageBox.Show(dialog, error.Message, "Проверьте порты"); }
+                        gameFilter.Ports = normalized;
+                        gameFilter.Mode = (string)mode.SelectedItem;
+                        SaveGameFilter();
+                        dialog.Close();
+                    } catch (ArgumentException exception) {
+                        error.Text = "Проверьте порты. " + exception.Message;
+                        ports.AccessibleDescription = error.Text;
+                        ports.Focus();
+                    }
                 };
-                dialog.Controls.Add(mode); dialog.Controls.Add(ports); dialog.Controls.Add(save); dialog.AcceptButton = save; dialog.ShowDialog(this);
+                content.Controls.Add(fields, 0, 0);
+                content.Controls.Add(DialogNote("Например: 1024-65535 или 27015,27020-27030.", Theme.Muted), 0, 1);
+                content.Controls.Add(DialogNote("Фильтр использует адреса из ipset-all.txt. Изменения вступят в силу при следующем запуске движка.", Theme.Muted), 0, 2);
+                content.Controls.Add(error, 0, 3);
+                content.Controls.Add(DialogActions(dialog, "Отмена", save), 0, 4);
+                dialog.AcceptButton = save;
+                dialog.ShowDialog(this);
             }
         }
     }

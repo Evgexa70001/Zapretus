@@ -5,93 +5,279 @@ using System.Windows.Forms;
 
 namespace Zapretus {
     internal sealed partial class MainForm {
-        readonly Label selectedProfile = new Label();
+        const int ConnectionHeight = 126;
+        const int StrategyHeight = 176;
+        const int SettingsHeight = 210;
+        const int ControlsHeight = ConnectionHeight + StrategyHeight + SettingsHeight;
+        const int CompactJournalHeight = 268;
         readonly Label scanSummary = new Label();
-        void UpdateSelectedProfile() {
-            var profile = profiles.SelectedItem as Profile;
-            selectedProfile.Text = profile == null ? "" : "По умолчанию: " + profile.ToString();
-        }
+        readonly LinkLabel mediaLink = new LinkLabel { Text = "Ссылка для медиатеста" };
+        Panel workspaceViewport;
+        TableLayoutPanel workspace, controlsPane;
+        Panel journalPane;
+        bool? stackedWorkspace;
+
         void BuildInterface() {
-            Text = "Zapretus"; AutoScaleDimensions = new SizeF(96, 96); AutoScaleMode = AutoScaleMode.Dpi;
-            ClientSize = new Size(860, 910); MinimumSize = new Size(800, 860);
+            Text = "Zapretus";
+            AutoScaleDimensions = new SizeF(96, 96);
+            AutoScaleMode = AutoScaleMode.Dpi;
+            var workArea = Screen.PrimaryScreen.WorkingArea;
+            ClientSize = new Size(Math.Min(1080, workArea.Width - 32), Math.Min(680, workArea.Height - 72));
+            MinimumSize = new Size(580, 450);
             StartPosition = FormStartPosition.CenterScreen;
-            Font = new Font("Segoe UI", 10); BackColor = Theme.Background; ForeColor = Theme.Text;
-            Icon = SystemIcons.Shield; DoubleBuffered = true;
-            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(28, 16, 28, 20), ColumnCount = 1, RowCount = 7 };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 90));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 178));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 174));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 14));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            Controls.Add(layout);
+            Font = new Font("Segoe UI", 10);
+            BackColor = Theme.Background;
+            ForeColor = Theme.Text;
+            DoubleBuffered = true;
 
-            var header = new Panel { Dock = DockStyle.Fill };
-            header.Controls.Add(LabelAt("zapretus", 0, 0, 300, 42, 25, true, Theme.Text, Theme.Background));
-            header.Controls.Add(LabelAt("Свободнее в сети. Проще в управлении.", 2, 47, 460, 24, 10, false, Theme.Muted, Theme.Background));
-            var trayLink = new LinkLabel { Text = "Свернуть в трей  ↗", Width = 170, Dock = DockStyle.Right, TextAlign = ContentAlignment.MiddleRight, LinkColor = Theme.Muted, ActiveLinkColor = Theme.Accent, LinkBehavior = LinkBehavior.HoverUnderline };
-            trayLink.LinkClicked += (s, e) => Hide(); header.Controls.Add(trayLink); layout.Controls.Add(header, 0, 0);
+            var shell = Grid(1, 2);
+            shell.Padding = new Padding(24, 0, 24, 16);
+            shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
+            shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            Controls.Add(shell);
 
-            var connection = new Card { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 14) };
-            toggle.SetBounds(25, 34, 100, 100); connection.Controls.Add(toggle);
-            connection.Controls.Add(LabelAt("ПОДКЛЮЧЕНИЕ", 150, 25, 400, 22, 9, true, Theme.Muted, Theme.Surface));
-            state.SetBounds(148, 51, 554, 38); state.BackColor = Theme.Surface;
-            state.Font = new Font("Segoe UI", 21, FontStyle.Bold); connection.Controls.Add(state);
-            hint.SetBounds(150, 99, 550, 46); hint.BackColor = Theme.Surface;
-            hint.ForeColor = Theme.Muted; hint.Font = new Font("Segoe UI", 10);
-            connection.Controls.Add(hint);
-            layout.Controls.Add(connection, 0, 1);
+            var header = Grid(2, 1);
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 172));
+            header.Controls.Add(TextLabel("Zapretus", 24, true), 0, 0);
+            var trayButton = new ModernButton { Text = "Свернуть в трей", Dock = DockStyle.Fill,
+                Margin = new Padding(0, 16, 0, 16) };
+            trayButton.Click += (s, e) => Hide();
+            header.Controls.Add(trayButton, 1, 0);
+            shell.Controls.Add(header, 0, 0);
 
-            var strategy = new Card { Dock = DockStyle.Fill, Margin = new Padding(0) };
-            strategy.Controls.Add(LabelAt("Стратегия обхода", 24, 18, 350, 28, 12, true, Theme.Text, Theme.Surface));
-            scanSummary.SetBounds(350, 22, 400, 24); scanSummary.Font = new Font("Segoe UI", 9);
-            scanSummary.TextAlign = ContentAlignment.TopRight; scanSummary.BackColor = Theme.Surface;
-            scanSummary.ForeColor = Theme.Accent; scanSummary.AutoEllipsis = true; strategy.Controls.Add(scanSummary);
-            selectedProfile.SetBounds(24, 49, 690, 22); selectedProfile.Font = new Font("Segoe UI", 9);
-            selectedProfile.BackColor = Theme.Surface; selectedProfile.ForeColor = Theme.Muted; strategy.Controls.Add(selectedProfile);
-            var mediaLink = new LinkLabel { Text = "Ссылка для медиатеста  ↗", Dock = DockStyle.Bottom, Height = 26, TextAlign = ContentAlignment.BottomRight, BackColor = Theme.Surface, LinkColor = Theme.Muted, ActiveLinkColor = Theme.Accent, LinkBehavior = LinkBehavior.HoverUnderline };
+            controlsPane = Grid(1, 3);
+            controlsPane.RowStyles.Add(new RowStyle(SizeType.Absolute, ConnectionHeight));
+            controlsPane.RowStyles.Add(new RowStyle(SizeType.Absolute, StrategyHeight));
+            controlsPane.RowStyles.Add(new RowStyle(SizeType.Absolute, SettingsHeight));
+            controlsPane.Controls.Add(BuildConnection(), 0, 0);
+            controlsPane.Controls.Add(BuildStrategy(), 0, 1);
+            controlsPane.Controls.Add(BuildSettings(), 0, 2);
+            journalPane = BuildJournal();
+
+            workspace = Grid(2, 1);
+            workspace.Dock = DockStyle.Top;
+            workspace.Controls.Add(controlsPane, 0, 0);
+            workspace.Controls.Add(journalPane, 1, 0);
+            workspaceViewport = new DarkScrollPanel { Dock = DockStyle.Fill, AutoScroll = true, Margin = Padding.Empty };
+            workspaceViewport.Controls.Add(workspace);
+            shell.Controls.Add(workspaceViewport, 0, 1);
+            workspaceViewport.SizeChanged += (s, e) => ArrangeWorkspace();
+            Shown += (s, e) => { ArrangeWorkspace(); toggle.Select(); };
+            ArrangeWorkspace();
+        }
+
+        void ArrangeWorkspace() {
+            using (var graphics = workspaceViewport.CreateGraphics()) {
+                float scale = graphics.DpiX / 96f;
+                bool stacked = workspaceViewport.Width < 810 * scale;
+                if (stackedWorkspace != stacked) {
+                    stackedWorkspace = stacked;
+                    workspace.SuspendLayout();
+                    workspace.RowStyles.Clear();
+                    workspace.ColumnStyles.Clear();
+                    workspace.ColumnCount = stacked ? 1 : 2;
+                    workspace.RowCount = stacked ? 2 : 1;
+                    workspace.SetCellPosition(journalPane, new TableLayoutPanelCellPosition(stacked ? 0 : 1, stacked ? 1 : 0));
+                    workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, stacked ? 100 : 59));
+                    if (!stacked) workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 41));
+                    workspace.RowStyles.Add(new RowStyle(stacked ? SizeType.Absolute : SizeType.Percent, stacked ? ControlsHeight * scale : 100));
+                    if (stacked) workspace.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                    journalPane.Margin = stacked
+                        ? new Padding(0, (int)(16 * scale), 0, 0)
+                        : new Padding((int)(24 * scale), 0, 0, 0);
+                    workspace.ResumeLayout();
+                }
+                workspace.Height = Math.Max(workspaceViewport.ClientSize.Height, (int)((ControlsHeight + (stacked ? CompactJournalHeight : 0)) * scale));
+            }
+        }
+
+        Control BuildConnection() {
+            var connection = Grid(2, 2);
+            connection.BackColor = Theme.Surface;
+            connection.Padding = new Padding(16, 12, 16, 12);
+            connection.Margin = new Padding(0, 0, 0, 12);
+            connection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            connection.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88));
+            connection.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+            connection.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            StyleLabel(state, 18, true);
+            StyleLabel(hint, 10, color: Theme.Muted);
+            hint.TextAlign = ContentAlignment.TopLeft;
+            toggle.Anchor = AnchorStyles.None;
+            toggle.Size = new Size(80, 80);
+            toggle.Margin = new Padding(8, 0, 0, 0);
+            connection.Controls.Add(state, 0, 0);
+            connection.Controls.Add(toggle, 1, 0);
+            connection.Controls.Add(hint, 0, 1);
+            connection.SetRowSpan(toggle, 2);
+            return connection;
+        }
+
+        Control BuildStrategy() {
+            var section = Grid(2, 4);
+            section.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            section.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            section.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+            section.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+            section.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+            section.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            var title = TextLabel("Стратегия обхода", 13, true);
+            StyleLink(mediaLink);
             mediaLink.LinkClicked += (s, e) => EditVideoUrl();
-            var actions = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 43, ColumnCount = 3, RowCount = 1, BackColor = Theme.Surface, Margin = Padding.Empty };
-            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 216));
-            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 184));
-            profiles.Dock = DockStyle.Fill; profiles.Margin = new Padding(0, 5, 14, 0);
-            profiles.DropDownStyle = ComboBoxStyle.DropDownList; profiles.FlatStyle = FlatStyle.Flat;
-            profiles.BackColor = Color.FromArgb(35, 44, 59); profiles.ForeColor = Theme.Text;
-            profiles.DrawMode = DrawMode.OwnerDrawFixed; profiles.ItemHeight = 27;
+            profiles.Dock = DockStyle.Fill;
+            profiles.Margin = new Padding(0, 4, 0, 4);
+            profiles.BackColor = Theme.Field;
+            profiles.ForeColor = Theme.Text;
+            profiles.DropDownStyle = ComboBoxStyle.DropDownList;
+            profiles.DrawMode = DrawMode.OwnerDrawFixed;
+            profiles.ItemHeight = 25;
+            profiles.MaxDropDownItems = 12;
             profiles.AccessibleName = "Стратегия обхода";
             profiles.DrawItem += DrawProfile;
-            scan.Text = "Подобрать стратегию"; scan.Dock = DockStyle.Fill; scan.Margin = new Padding(0, 0, 10, 0);
-            check.Text = "Диагностика"; check.Dock = DockStyle.Fill; check.Margin = Padding.Empty;
-            actions.Controls.Add(profiles, 0, 0); actions.Controls.Add(scan, 1, 0); actions.Controls.Add(check, 2, 0);
-            strategy.Controls.Add(actions); strategy.Controls.Add(mediaLink); layout.Controls.Add(strategy, 0, 2);
-            layout.Controls.Add(GameCard(), 0, 3);
-            layout.Controls.Add(AutostartCard(), 0, 4);
 
-            var journal = new Card { Dock = DockStyle.Fill, Margin = Padding.Empty };
-            var journalHeader = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = Theme.Surface };
-            journalHeader.Controls.Add(LabelAt("Журнал событий", 0, 0, 250, 26, 12, true, Theme.Text, Theme.Surface));
-            var folder = new LinkLabel { Text = "Открыть папку  ↗", Width = 160, Dock = DockStyle.Right, TextAlign = ContentAlignment.TopRight, LinkColor = Theme.Muted, ActiveLinkColor = Theme.Accent, LinkBehavior = LinkBehavior.HoverUnderline };
-            folder.LinkClicked += (s, e) => Process.Start("explorer.exe", dataDir); journalHeader.Controls.Add(folder);
-            logs.Dock = DockStyle.Fill; logs.Multiline = true; logs.ReadOnly = true;
-            logs.ScrollBars = ScrollBars.Vertical; logs.BackColor = Theme.Surface;
-            logs.ForeColor = Color.FromArgb(169, 188, 209); logs.BorderStyle = BorderStyle.None;
-            logs.Font = new Font("Consolas", 9);
-            journal.Controls.Add(logs); journal.Controls.Add(journalHeader); layout.Controls.Add(journal, 0, 6);
+            scan.Text = ScanButtonText;
+            scan.Dock = DockStyle.Fill;
+            scan.Margin = new Padding(0, 0, 4, 4);
+            check.Text = "&Диагностика";
+            check.Dock = DockStyle.Fill;
+            check.Margin = new Padding(4, 0, 0, 4);
+            StyleLabel(scanSummary, 10, color: Theme.Muted);
+            scanSummary.TextAlign = ContentAlignment.TopLeft;
+            scanSummary.Padding = new Padding(0, 4, 0, 0);
+            scanSummary.Text = "Подбор сохранит стратегию, если она улучшит результаты тестов.";
+
+            section.Controls.Add(title, 0, 0);
+            section.Controls.Add(mediaLink, 1, 0);
+            section.Controls.Add(profiles, 0, 1);
+            section.SetColumnSpan(profiles, 2);
+            section.Controls.Add(scan, 0, 2);
+            section.Controls.Add(check, 1, 2);
+            section.Controls.Add(scanSummary, 0, 3);
+            section.SetColumnSpan(scanSummary, 2);
+            return section;
         }
-        static Label LabelAt(string text, int x, int y, int w, int h, float size, bool bold, Color color, Color background) {
-            return new Label { Text = text, Location = new Point(x, y), Size = new Size(w, h),
-                Font = new Font("Segoe UI", size, bold ? FontStyle.Bold : FontStyle.Regular), ForeColor = color, BackColor = background };
+
+        Control BuildSettings() {
+            var section = Grid(2, 4);
+            section.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
+            section.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
+            section.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+            section.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));
+            section.RowStyles.Add(new RowStyle(SizeType.Absolute, 90));
+            var title = TextLabel("Настройки", 13, true);
+            var hosts = new LinkLabel { Text = "Настроить hosts" };
+            StyleLink(hosts);
+            hosts.LinkClicked += (s, e) => ShowHostsSettings();
+            section.Controls.Add(title, 0, 0);
+            section.Controls.Add(hosts, 1, 0);
+            var game = GameSettingsRow();
+            var autostart = AutostartSettingsRow();
+            section.Controls.Add(game, 0, 1);
+            section.SetColumnSpan(game, 2);
+            section.Controls.Add(autostart, 0, 2);
+            section.SetColumnSpan(autostart, 2);
+            return section;
         }
-        void DrawProfile(object sender, DrawItemEventArgs e) {
-            if (e.Index < 0) return;
+
+        static Control SettingsRow(CheckBox setting, Label description, LinkLabel action) {
+            var row = Grid(2, 3);
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
+            row.RowStyles.Add(new RowStyle(SizeType.Absolute, 1));
+            row.RowStyles.Add(new RowStyle(SizeType.Absolute, 37));
+            row.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var rule = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty, BackColor = Theme.Border };
+            row.Controls.Add(rule, 0, 0);
+            row.SetColumnSpan(rule, 2);
+            setting.Dock = DockStyle.Fill;
+            setting.Margin = Padding.Empty;
+            StyleLabel(description, 10, color: Theme.Muted);
+            description.TextAlign = ContentAlignment.TopLeft;
+            StyleLink(action);
+            row.Controls.Add(setting, 0, 1);
+            row.Controls.Add(action, 1, 1);
+            row.Controls.Add(description, 0, 2);
+            row.SetColumnSpan(description, 2);
+            return row;
+        }
+
+        Panel BuildJournal() {
+            var panel = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Surface, Padding = new Padding(16, 8, 16, 16) };
+            var section = Grid(2, 2);
+            section.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            section.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125));
+            section.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            section.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var folder = new LinkLabel { Text = "Папка отчётов" };
+            StyleLink(folder);
+            folder.LinkClicked += (s, e) => Process.Start("explorer.exe", dataDir);
+            logs.Multiline = true;
+            logs.ReadOnly = true;
+            logs.ScrollBars = ScrollBars.Vertical;
+            logs.Font = new Font("Consolas", 10);
+            section.Controls.Add(TextLabel("Журнал событий", 13, true), 0, 0);
+            section.Controls.Add(folder, 1, 0);
+            var journal = InputFrame(logs, "Журнал событий");
+            section.Controls.Add(journal, 0, 1);
+            section.SetColumnSpan(journal, 2);
+            panel.Controls.Add(section);
+            return panel;
+        }
+
+        static TableLayoutPanel Grid(int columns, int rows) {
+            return new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = columns, RowCount = rows, Margin = Padding.Empty };
+        }
+        static Label TextLabel(string text, float size = 10, bool bold = false, Color? color = null) {
+            var label = new Label { Text = text };
+            StyleLabel(label, size, bold, color);
+            return label;
+        }
+        static void StyleLabel(Label label, float size, bool bold = false, Color? color = null) {
+            label.Dock = DockStyle.Fill;
+            label.Margin = Padding.Empty;
+            label.TextAlign = ContentAlignment.MiddleLeft;
+            label.Font = new Font("Segoe UI", size, bold ? FontStyle.Bold : FontStyle.Regular);
+            label.ForeColor = color ?? Theme.Text;
+        }
+        static void StyleLink(LinkLabel link) {
+            link.Dock = DockStyle.Fill;
+            link.TextAlign = ContentAlignment.MiddleRight;
+            link.Margin = new Padding(4, 0, 0, 0);
+            link.LinkColor = Theme.Accent;
+            link.ActiveLinkColor = Theme.Text;
+            link.VisitedLinkColor = Theme.Accent;
+            link.DisabledLinkColor = Theme.Disabled;
+            link.LinkBehavior = LinkBehavior.AlwaysUnderline;
+        }
+        Control InputFrame(TextBox input, string name) {
+            var frame = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty, BackColor = Theme.ControlBorder,
+                Padding = new Padding(2) };
+            input.AccessibleName = name;
+            input.BackColor = Theme.Field;
+            input.ForeColor = Theme.Text;
+            input.BorderStyle = BorderStyle.None;
+            input.Dock = DockStyle.Fill;
+            input.GotFocus += (s, e) => frame.BackColor = Theme.Accent;
+            input.LostFocus += (s, e) => frame.BackColor = Theme.ControlBorder;
+            if (!input.Multiline) {
+                input.Font = Font;
+                frame.Dock = DockStyle.Top;
+                frame.Height = input.PreferredHeight + frame.Padding.Vertical;
+            }
+            frame.Controls.Add(input);
+            return frame;
+        }
+        static void DrawProfile(object sender, DrawItemEventArgs e) {
+            var combo = (ComboBox)sender;
+            if (e.Index < 0 || e.Index >= combo.Items.Count) return;
             bool selected = (e.State & DrawItemState.Selected) != 0;
-            using (var b = new SolidBrush(selected ? Color.FromArgb(50, 69, 81) : Color.FromArgb(35, 44, 59))) e.Graphics.FillRectangle(b, e.Bounds);
-            TextRenderer.DrawText(e.Graphics, profiles.Items[e.Index].ToString(), profiles.Font,
-                Rectangle.Inflate(e.Bounds, -8, 0), profiles.Enabled ? Theme.Text : Theme.Muted,
-                TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
-            e.DrawFocusRectangle();
+            using (var brush = new SolidBrush(selected ? Theme.Selection : Theme.Field))
+                e.Graphics.FillRectangle(brush, e.Bounds);
+            TextRenderer.DrawText(e.Graphics, combo.Items[e.Index].ToString(), combo.Font,
+                Rectangle.Inflate(e.Bounds, -6, 0), combo.Enabled ? Theme.Text : Theme.Disabled,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         }
     }
 }

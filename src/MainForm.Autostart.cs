@@ -8,20 +8,12 @@ namespace Zapretus {
         readonly Label autostartDescription = new Label();
         readonly LinkLabel autostartUpdate = new LinkLabel();
         bool loadingAutostart;
-        Card AutostartCard() {
-            var card = new Card { Dock = DockStyle.Fill, Margin = new Padding(0, 14, 0, 0) };
-            autostartSwitch.Text = "Автозапуск"; autostartSwitch.Font = new Font("Segoe UI", 11, FontStyle.Bold);
-            autostartSwitch.SetBounds(24, 15, 260, 32);
+        Control AutostartSettingsRow() {
+            autostartSwitch.Text = "Автозапуск";
             autostartSwitch.CheckedChanged += (s, e) => { if (!loadingAutostart) ChangeAutostart(autostartSwitch.Checked); };
-            autostartDescription.SetBounds(26, 50, 710, 24); autostartDescription.Font = new Font("Segoe UI", 9);
-            autostartDescription.ForeColor = Theme.Muted; autostartDescription.BackColor = Theme.Surface;
-            autostartUpdate.Text = "Привязать эту версию  ↗"; autostartUpdate.Width = 220; autostartUpdate.Dock = DockStyle.Right;
-            autostartUpdate.TextAlign = ContentAlignment.TopRight; autostartUpdate.BackColor = Theme.Surface;
-            autostartUpdate.LinkColor = Theme.Muted; autostartUpdate.ActiveLinkColor = Theme.Accent;
-            autostartUpdate.LinkBehavior = LinkBehavior.HoverUnderline;
+            autostartUpdate.Text = "Привязать эту версию";
             autostartUpdate.LinkClicked += (s, e) => ChangeAutostart(true);
-            card.Controls.Add(autostartSwitch); card.Controls.Add(autostartDescription); card.Controls.Add(autostartUpdate);
-            return card;
+            return SettingsRow(autostartSwitch, autostartDescription, autostartUpdate);
         }
         void LoadAutostart() {
             loadingAutostart = true;

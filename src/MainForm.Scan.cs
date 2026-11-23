@@ -9,7 +9,7 @@ namespace Zapretus {
             if (System.Diagnostics.Process.GetProcessesByName("winws").Length > 0 || System.Diagnostics.Process.GetProcessesByName("winws2").Length > 0) {
                 Log("Остановите другой zapret перед подбором."); return;
             }
-            BeginWork(); scan.Text = "Отменить"; scanSummary.Text = "Подбор выполняется…";
+            BeginWork(); scan.Text = CancelButtonText; scanSummary.Text = "Подбор выполняется…";
             try {
                 using (var report = new ScanReport(dataDir)) {
                     Log("Отчёт: " + report.Path);
@@ -47,7 +47,7 @@ namespace Zapretus {
                                 best = p; bestScore = Math.Min(result.Score, confirm.Score);
                                 bestResult = confirm;
                                 // Make each confirmed winner the default immediately, even if a later trial is cancelled.
-                                profiles.SelectedItem = p; SaveProfile(); UpdateSelectedProfile(); profiles.Invalidate();
+                                profiles.SelectedItem = p; SaveProfile(); profiles.Invalidate();
                                 scanSummary.Text = "Выбран: " + p.ToString() + " · " + confirm.Summary;
                                 Log("НОВЫЙ ВЫБОР ПО УМОЛЧАНИЮ: " + p.ToString() + " · " + confirm.Summary + ". Подтверждено повторной проверкой.");
                                 if (result.AllPassed && confirm.AllPassed) break;
@@ -60,11 +60,11 @@ namespace Zapretus {
                     cancellation.Token.ThrowIfCancellationRequested();
                     if (best != null) {
                         engine.Stop(); profiles.SelectedItem = best; SaveProfile();
-                        UpdateSelectedProfile(); profiles.Invalidate();
+                        profiles.Invalidate();
                         scanSummary.Text = "Итог: " + best.ToString() + " · " + bestResult.Summary;
                         Log("ИТОГ ПОДБОРА: " + best.ToString() + " · " + bestResult.Summary + ". Выбран и сохранён по умолчанию.");
                         Log("При одинаковых баллах сохраняется первый подтверждённый вариант. Последний проверенный кандидат не обязательно лучший.");
-                        Log("Нажмите кнопку питания, чтобы включить выбранный профиль.");
+                        Log("Нажмите кнопку питания, чтобы запустить выбранный профиль.");
                         Log("Результат относится только к выполненным тестам; голос и QUIC не подтверждены.");
                     } else { scanSummary.Text = "Улучшение не найдено"; Log("ИТОГ ПОДБОРА: подтверждённого улучшения нет. Выбор по умолчанию не изменён: " + profiles.SelectedItem); }
                 }
